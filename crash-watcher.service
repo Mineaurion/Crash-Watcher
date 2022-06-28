@@ -1,0 +1,11 @@
+[Unit]
+Description=Crash-Watcher Daemon
+
+[Service]
+Environment="PATH=/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+ExecStart=/usr/local/bin/crash-watcher
+WatchdogSec=3600
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

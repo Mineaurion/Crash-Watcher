@@ -1,0 +1,8 @@
+# Logs
+logs/*
+*.log
+
+crash-watcher.ini
+
+#test folder
+test/

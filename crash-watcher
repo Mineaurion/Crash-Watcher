@@ -1,0 +1,42 @@
+#!/bin/bash
+if ! command -v inotifywait &> /dev/null
+then
+  echo "inotifywait could not be found, please install inotify-tools via apt install inotify-tools"
+  exit 1
+fi
+if ! command -v jq &> /dev/null
+then
+  echo "jq could not be found, please install jq via apt install jq"
+  exit 1
+fi
+#Inclusion du fichier de config .ini
+if [ ! -f /etc/crash-watcher.ini ]; then
+  echo "Settings file not found"
+  exit 1
+fi
+. /etc/crash-watcher.ini
+
+echo "Watching all crash in this folder $FOLDER_WATCH/*/crash-reports"
+inotifywait -m $FOLDER_WATCH/*/crash-reports -e create |
+    while read dir action file
+    do
+      if [[ $file =~ .*txt$ ]]; then
+        serverFolder=`echo $dir | rev | cut -d'/' -f3 | rev`
+        if [[ $serverFolder =~ ^\{?[A-F0-9a-f]{8}-[A-F0-9a-f]{4}-[A-F0-9a-f]{4}-[A-F0-9a-f]{4}-[A-F0-9a-f]{12}\}?$ ]]
+        then
+          #Probablement un serveur pterodactyl
+          serverId=`echo $serverFolder | cut -d'-' -f1`
+          response=`curl -s -X GET "$PTERO_DOMAIN/api/client/servers/$serverId" -H "Accept: application/json" -H "Content-Type: application/json" -H "Authorization: Bearer $PTERO_API_KEY"`
+          serverName=`echo $response | jq -r .attributes.name`
+          description=`echo $response | jq -r .attributes.description`
+        else
+          #Probablement un multicraft du coup on prend le nom du dossier
+          serverName=$serverFolder
+          description="" # On part du principe qu'un serveur multicraft doit tout le temps etre monitorer
+        fi
+        if [[ $description != *"no-watch"* ]]; then
+          echo "Detect new crash with file : $dir$file and server $serverName"
+          curl -s -F 'payload_json={"username": "'"$serverName"' crash watcher", "content": "'"$DISCORD_MENTION\n $serverName"' has crashed : "}' -F "file1=@$dir$file" $WEBHOOK_URL > /dev/null
+        fi
+      fi
+    done
